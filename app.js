@@ -1,11 +1,13 @@
 const typingText = document.querySelector(".typing-text");
+const result = document.querySelector(".result");
+const wpmDisplay = document.querySelector("#wpm");
 let caretPositionLeft = 0;
 let caret;
 let caretTimeout;
 
 async function getPassage() {
 	const passage = data.quotes[Math.floor(Math.random() * 6349)];
-	return passage.text;
+	return passage;
 }
 
 function moveCaretHorizontal(dir) {
@@ -40,44 +42,103 @@ function moveCaretToNextWord(word) {
 
 async function addTextToDOM() {
 	const passage = await getPassage();
-	const words = passage.split(" ");
+	const words = passage.text.split(" ");
 
-	for (let i = 0; i < words.length - 1; i++) {
+	for (let i = 0; i < words.length; i++) {
 		let word = createWord(words[i]);
 		typingText.appendChild(word);
 	}
-	typingText.appendChild(createWord(words[words.length - 1]));
 
-	return words;
+	return {
+		words: words,
+		length: passage.length,
+	};
 }
 
 async function listen() {
 	let currWord = 0,
 		currLetter = 0,
 		extraLetterCount = 0,
-		incorrectLetterIndex = -1;
+		incorrectLetterIndex = -1,
+		totalTyped = 0,
+		seconds = 0,
+		timeInterval;
+
+	let hasStarted = false;
+	let isListening = false;
 
 	let wordsDOM;
 	let words;
+	let levels;
+	let currLevel = 0;
 
-	async function reset() {
-		typingText.innerHTML = "";
-		words = await addTextToDOM();
-		wordsDOM = document.querySelectorAll(".word");
-		wordsDOM[0].classList.add("active-word");
-		caret?.remove();
+	function removeLine(line) {
+		for (let i = 0; i < levels[line].length; i++) {
+			levels[line][i].remove();
+		}
+	}
 
+	function initializeCaret() {
 		caret = document.createElement("div");
 		caret.id = "caret";
 		caret.classList.add("animation-caret-flash");
 		moveCaretToNextWord(typingText.firstElementChild);
+	}
+
+	function getLevels() {
+		const TOLERANCE = 5;
+
+		const lines = [];
+		let currentOffsetTop = null;
+
+		wordsDOM.forEach((item) => {
+			const offsetTop = item.offsetTop;
+
+			if (
+				currentOffsetTop === null ||
+				Math.abs(offsetTop - currentOffsetTop) > TOLERANCE
+			) {
+				currentOffsetTop = offsetTop;
+				lines.push([]);
+			}
+
+			lines[lines.length - 1].push(item);
+		});
+
+		return lines;
+	}
+
+	async function reset() {
+		typingText.innerHTML = "";
+		const passageData = await addTextToDOM();
+		typingText.classList.remove("hidden");
+		result.classList.add("hidden");
+
+		words = passageData.words;
+		wordsDOM = document.querySelectorAll(".word");
+		wordsDOM[0].classList.add("active-word");
+		levels = getLevels();
+		console.log(levels);
+		caret?.remove();
+		initializeCaret();
 		currWord = 0;
 		currLetter = 0;
 		extraLetterCount = 0;
 		incorrectLetterIndex = -1;
+		clearInterval(timeInterval);
+		hasStarted = false;
+
+		seconds = 0;
+		totalTyped = 0;
+		isListening = true;
+		currLevel = 0;
 	}
 
-	await reset();
+	function startTimeCounting() {
+		timeInterval = setInterval(() => {
+			seconds += 0.5;
+		}, 500);
+	}
 
 	function backspace(letters) {
 		moveCaretHorizontal(-1);
@@ -98,6 +159,18 @@ async function listen() {
 
 	function space(letters) {
 		moveCaretToNextWord(wordsDOM[currWord + 1]);
+		totalTyped++;
+
+		if (
+			levels[currLevel + 1] &&
+			wordsDOM[currWord + 1] == levels[currLevel + 1][0]
+		) {
+			++currLevel;
+		}
+
+		if (currLevel >= 2 && currLevel + 1 < levels.length) {
+			removeLine(currLevel - 2);
+		}
 
 		if (currLetter < words[currWord].length || incorrectLetterIndex != -1) {
 			wordsDOM[currWord].classList.add("incorrect-word");
@@ -113,6 +186,7 @@ async function listen() {
 
 	function correctTyped(letters) {
 		moveCaretHorizontal(1);
+		totalTyped++;
 		letters[currLetter++].classList.add("correct-letter");
 	}
 
@@ -164,7 +238,23 @@ async function listen() {
 		currLetter = 0;
 	}
 
-	document.addEventListener("keydown", async (event) => {
+	function showWPM() {
+		typingText.classList.add("hidden");
+		result.classList.remove("hidden");
+		wpmDisplay.textContent =
+			"WPM : " +
+			Math.round((totalTyped / 5 / (seconds / 60)) * 100) / 100;
+		hasStarted = false;
+		isListening = false;
+	}
+
+	async function typingHandler(event) {
+		if (event.key == "Enter") {
+			await reset();
+		}
+
+		if (!isListening) return;
+
 		let letters = wordsDOM[currWord].querySelectorAll("letter");
 
 		if (event.key == "Backspace" && event.ctrlKey) {
@@ -186,19 +276,44 @@ async function listen() {
 		if (event.key.length > 1) return;
 
 		if (event.key == " ") {
+			event.preventDefault();
 			if (currLetter == 0) return;
 
-			if (currWord == words.length - 1) await reset();
-			else space(letters);
+			if (currWord == words.length - 1) {
+				wpm = totalTyped / 5 / (seconds / 60);
+				showWPM();
+			} else {
+				space(letters);
+			}
 		} else if (words[currWord][currLetter] == event.key) {
-			correctTyped(letters);
+			if (
+				currWord == words.length - 1 &&
+				currLetter == words[currWord].length - 1
+			) {
+				wpm = totalTyped / 5 / (seconds / 60);
+				showWPM();
+			} else {
+				if (!hasStarted) {
+					startTimeCounting();
+					hasStarted = true;
+				}
+				correctTyped(letters);
+			}
 		} else if (currLetter >= words[currWord].length) {
 			if (extraLetterCount > 5) return;
 			extraTyped(letters);
 		} else {
+			if (!hasStarted) {
+				startTimeCounting();
+				hasStarted = true;
+			}
 			incorrectTyped(letters);
 		}
-	});
+	}
+
+	await reset();
+
+	document.addEventListener("keydown", typingHandler);
 }
 
 async function main() {
