@@ -62,20 +62,28 @@ async function listen() {
 		incorrectLetterIndex = -1,
 		totalTyped = 0,
 		seconds = 0,
-		timeInterval;
+		currVisibleWords,
+		timeInterval,
+		resizeTimeout,
+		currVisibleLine = 0;
 
 	let hasStarted = false;
 	let isListening = false;
 
 	let wordsDOM;
 	let words;
-	let levels;
-	let currLevel = 0;
+	let lines;
+	let currLine = 0;
 
 	function removeLine(line) {
-		for (let i = 0; i < levels[line].length; i++) {
-			levels[line][i].remove();
+		console.log(lines[line]);
+		for (let i = 0; i < lines[line].length; i++) {
+			console.log("lines[line][i] :>> ", lines[line][i]);
+			lines[line][i].remove();
+			currVisibleWords++;
 		}
+		currVisibleLine++;
+		console.log("removeLine >> currentVisible ", currVisibleWords);
 	}
 
 	function initializeCaret() {
@@ -85,9 +93,8 @@ async function listen() {
 		moveCaretToNextWord(typingText.firstElementChild);
 	}
 
-	function getLevels() {
+	function getLine() {
 		const TOLERANCE = 5;
-
 		const lines = [];
 		let currentOffsetTop = null;
 
@@ -105,6 +112,7 @@ async function listen() {
 			lines[lines.length - 1].push(item);
 		});
 
+		console.log(lines);
 		return lines;
 	}
 
@@ -117,8 +125,8 @@ async function listen() {
 		words = passageData.words;
 		wordsDOM = document.querySelectorAll(".word");
 		wordsDOM[0].classList.add("active-word");
-		levels = getLevels();
-		console.log(levels);
+		lines = await getLine();
+		// console.log(lines);
 		caret?.remove();
 		initializeCaret();
 		currWord = 0;
@@ -131,7 +139,9 @@ async function listen() {
 		seconds = 0;
 		totalTyped = 0;
 		isListening = true;
-		currLevel = 0;
+		currLine = 0;
+		currVisibleWords = 0;
+		currVisibleLine = 0;
 	}
 
 	function startTimeCounting() {
@@ -161,15 +171,23 @@ async function listen() {
 		moveCaretToNextWord(wordsDOM[currWord + 1]);
 		totalTyped++;
 
+		// console.log("levels[currLevel + 1] :>> ", lines[currLine + 1]);
+		// if (lines[currLine + 1])
+		// 	console.log(
+		// 		"levels[currLevel + 1][0] :>> ",
+		// 		lines[currLine + 1][0]
+		// 	);
+
 		if (
-			levels[currLevel + 1] &&
-			wordsDOM[currWord + 1] == levels[currLevel + 1][0]
+			lines[currLine + 1] &&
+			wordsDOM[currWord + 1] == lines[currLine + 1][0]
 		) {
-			++currLevel;
+			++currLine;
 		}
 
-		if (currLevel >= 2 && currLevel + 1 < levels.length) {
-			removeLine(currLevel - 2);
+		console.log(currLine);
+		if (currLine - currVisibleLine >= 2 && currLine + 1 < lines.length) {
+			removeLine(currLine - 2);
 		}
 
 		if (currLetter < words[currWord].length || incorrectLetterIndex != -1) {
@@ -314,6 +332,23 @@ async function listen() {
 	await reset();
 
 	document.addEventListener("keydown", typingHandler);
+
+	window.addEventListener("resize", () => {
+		clearTimeout(resizeTimeout);
+		resizeTimeout = setTimeout(async () => {
+			for (let i = currVisibleWords; i < currWord; i++) {
+				wordsDOM[i].remove();
+				console.log(wordsDOM[i]);
+			}
+
+			lines = getLine();
+			console.log(lines);
+			console.log(currVisibleWords, currWord);
+			currVisibleWords = currWord;
+			currLine = 0;
+			currVisibleLine = 0;
+		}, 200);
+	});
 }
 
 async function main() {
