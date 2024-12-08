@@ -1,14 +1,14 @@
 // const URL = "http://metaphorpsum.com/paragraphs/1/2";
-const API_URL = "https://monkeytype.com/quotes/english.json";
+// const API_URL = "https://monkeytype.com/quotes/english.json";
 const typingText = document.querySelector(".typing-text");
 let caretPositionLeft = 0;
 let caret;
 let caretTimeout;
 
 async function getPassage() {
-	const response = await axios.get(API_URL);
-	const passage = response.data.quotes[Math.floor(Math.random() * 6349)];
-
+	// const response = await axios.get(API_URL);
+	// const passage = response.data.quotes[Math.floor(Math.random() * 6349)];
+	const passage = data.quotes[Math.floor(Math.random() * 6349)];
 	return passage.text;
 }
 
