@@ -64,8 +64,7 @@ async function listen() {
 		seconds = 0,
 		currVisibleWords,
 		timeInterval,
-		resizeTimeout,
-		currVisibleLine = 0;
+		resizeTimeout;
 
 	let hasStarted = false;
 	let isListening = false;
@@ -75,17 +74,6 @@ async function listen() {
 	let lines;
 	let currLine = 0;
 
-	function removeLine(line) {
-		console.log(lines[line]);
-		for (let i = 0; i < lines[line].length; i++) {
-			console.log("lines[line][i] :>> ", lines[line][i]);
-			lines[line][i].remove();
-			currVisibleWords++;
-		}
-		currVisibleLine++;
-		console.log("removeLine >> currentVisible ", currVisibleWords);
-	}
-
 	function initializeCaret() {
 		caret = document.createElement("div");
 		caret.id = "caret";
@@ -93,55 +81,71 @@ async function listen() {
 		moveCaretToNextWord(typingText.firstElementChild);
 	}
 
-	function getLine() {
-		const TOLERANCE = 5;
-		const lines = [];
-		let currentOffsetTop = null;
-
-		wordsDOM.forEach((item) => {
-			const offsetTop = item.offsetTop;
-
-			if (
-				currentOffsetTop === null ||
-				Math.abs(offsetTop - currentOffsetTop) > TOLERANCE
-			) {
-				currentOffsetTop = offsetTop;
-				lines.push([]);
-			}
-
-			lines[lines.length - 1].push(item);
-		});
-
-		console.log(lines);
-		return lines;
-	}
-
 	async function reset() {
 		typingText.innerHTML = "";
 		const passageData = await addTextToDOM();
+		words = passageData.words;
+
 		typingText.classList.remove("hidden");
 		result.classList.add("hidden");
 
-		words = passageData.words;
-		wordsDOM = document.querySelectorAll(".word");
+		wordsDOM = Array.from(document.querySelectorAll(".word"));
 		wordsDOM[0].classList.add("active-word");
+
 		lines = await getLine();
-		// console.log(lines);
+
 		caret?.remove();
 		initializeCaret();
-		currWord = 0;
-		currLetter = 0;
-		extraLetterCount = 0;
-		incorrectLetterIndex = -1;
+
 		clearInterval(timeInterval);
+
+		isListening = true;
 		hasStarted = false;
 
-		seconds = 0;
-		totalTyped = 0;
-		isListening = true;
+		currLetter = 0;
 		currLine = 0;
 		currVisibleWords = 0;
-		currVisibleLine = 0;
+		currWord = 0;
+		extraLetterCount = 0;
+		incorrectLetterIndex = -1;
+		seconds = 0;
+		totalTyped = 0;
+	}
+
+	function removeLine(line) {
+		wordsDOM.reverse();
+		words.reverse();
+
+		for (let i = 0; i < lines[line].length; i++) {
+			wordsDOM.pop();
+			words.pop();
+			lines[line][i].remove();
+			currWord--;
+		}
+		wordsDOM.reverse();
+		words.reverse();
+		lines.shift();
+	}
+
+	async function getLine() {
+		const typingTextWidth = parseFloat(window.getComputedStyle(typingText).width.slice(0, -2));
+		const lines = [[]];
+		let currWidth = 0;
+		let wordWidth;
+
+		for (let i = 0; i < wordsDOM.length; i++) {
+			const item = wordsDOM[i];
+			wordWidth = parseFloat(window.getComputedStyle(item).width.slice(0, -2));
+
+			if (currWidth + wordWidth > typingTextWidth) {
+				currWidth = 0;
+				lines.push([]);
+			}
+			currWidth += (wordWidth + 19);
+			lines[lines.length - 1].push(item);
+		}
+
+		return lines;
 	}
 
 	function startTimeCounting() {
@@ -171,13 +175,7 @@ async function listen() {
 		moveCaretToNextWord(wordsDOM[currWord + 1]);
 		totalTyped++;
 
-		// console.log("levels[currLevel + 1] :>> ", lines[currLine + 1]);
-		// if (lines[currLine + 1])
-		// 	console.log(
-		// 		"levels[currLevel + 1][0] :>> ",
-		// 		lines[currLine + 1][0]
-		// 	);
-
+		console.log("currLine :>> ", currLine);
 		if (
 			lines[currLine + 1] &&
 			wordsDOM[currWord + 1] == lines[currLine + 1][0]
@@ -186,8 +184,9 @@ async function listen() {
 		}
 
 		console.log(currLine);
-		if (currLine - currVisibleLine >= 2 && currLine + 1 < lines.length) {
+		if (currLine >= 2 && currLine + 1 < lines.length) {
 			removeLine(currLine - 2);
+			currLine = 1;
 		}
 
 		if (currLetter < words[currWord].length || incorrectLetterIndex != -1) {
@@ -336,17 +335,21 @@ async function listen() {
 	window.addEventListener("resize", () => {
 		clearTimeout(resizeTimeout);
 		resizeTimeout = setTimeout(async () => {
-			for (let i = currVisibleWords; i < currWord; i++) {
-				wordsDOM[i].remove();
-				console.log(wordsDOM[i]);
-			}
 
-			lines = getLine();
-			console.log(lines);
-			console.log(currVisibleWords, currWord);
-			currVisibleWords = currWord;
+			let len = wordsDOM.length;
+			wordsDOM.reverse();
+			words.reverse();
+			for (let i = 0; i < currWord; i++) {
+				wordsDOM[len - i - 1].remove();
+				wordsDOM.pop();
+				words.pop();
+			}
+			wordsDOM.reverse();
+			words.reverse();
+
+			lines = await getLine();
 			currLine = 0;
-			currVisibleLine = 0;
+			currWord = 0;
 		}, 200);
 	});
 }
