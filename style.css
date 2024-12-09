@@ -35,7 +35,10 @@
 	position: absolute;
 	top: calc(0);
 	left: calc(0);
-    transition: left 0.1s;
+}
+
+.transition-slow {
+	transition: left 0.1s;
 }
 
 body {

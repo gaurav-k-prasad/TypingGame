@@ -14,7 +14,11 @@ async function getPassage() {
 
 function moveCaretHorizontal(dir) {
 	caretPositionLeft += dir;
+	if (Math.abs(dir) > 1) {
+		caret.classList.remove("transition-slow");
+	}
 	caret.style.left = `calc(${caretPositionLeft}*19.22px)`;
+	caret.classList.add("transition-slow");
 }
 
 function createLetter(letter) {
@@ -36,7 +40,7 @@ function createWord(word) {
 	return wordDOM;
 }
 
-function moveCaretToNextWord(word) {
+function moveCaretToWord(word) {
 	caretPositionLeft = -1;
 	moveCaretHorizontal(1);
 	word.insertBefore(caret, word.children[0]);
@@ -44,10 +48,14 @@ function moveCaretToNextWord(word) {
 
 async function addTextToDOM() {
 	const passage = await getPassage();
-	const words = passage.text.split(" ");
+	let wordsText = passage.text.split(" ");
+	const words = [];
+	for (let ele of wordsText) {
+		words.push({ word: ele, incorrectLetterIndex: -1, typedTill: 0 });
+	}
 
 	for (let i = 0; i < words.length; i++) {
-		let word = createWord(words[i]);
+		let word = createWord(wordsText[i]);
 		typingText.appendChild(word);
 	}
 
@@ -59,15 +67,14 @@ async function addTextToDOM() {
 
 async function listen() {
 	let currWord = 0,
-		currLetter = 0,
-		extraLetterCount = 0,
-		incorrectLetterIndex = -1,
 		correctTypedCount = 0,
-		totalChars,
+		currLine = 0,
+		currLetter = 0,
 		incorrectTypedCount = 0,
 		seconds = 0,
+		resizeTimeout,
 		timeInterval,
-		resizeTimeout;
+		totalChars;
 
 	let hasStarted = false;
 	let isListening = false;
@@ -75,13 +82,13 @@ async function listen() {
 	let wordsDOM;
 	let words;
 	let lines;
-	let currLine = 0;
 
 	function initializeCaret() {
 		caret = document.createElement("div");
 		caret.id = "caret";
 		caret.classList.add("animation-caret-flash");
-		moveCaretToNextWord(typingText.firstElementChild);
+		caret.classList.add("transition-slow");
+		moveCaretToWord(typingText.firstElementChild);
 	}
 
 	async function reset() {
@@ -110,11 +117,8 @@ async function listen() {
 		currLine = 0;
 		currWord = 0;
 		currLetter = 0;
-		currVisibleWords = 0;
-		extraLetterCount = 0;
 		correctTypedCount = 0;
 		incorrectTypedCount = 0;
-		incorrectLetterIndex = -1;
 	}
 
 	function removeLine(line) {
@@ -153,7 +157,6 @@ async function listen() {
 			currWidth += wordWidth + 19;
 			lines[lines.length - 1].push(item);
 		}
-		console.log(lines);
 		return lines;
 	}
 
@@ -164,29 +167,43 @@ async function listen() {
 	}
 
 	function backspace(letters) {
-		moveCaretHorizontal(-1);
-		currLetter--;
+		if (currLetter > 0) {
+			moveCaretHorizontal(-1);
+			currLetter--;
 
-		if (letters[currLetter].classList.contains("correct-letter")) {
-			correctTypedCount--;
-			letters[currLetter].classList.remove("correct-letter");
-		}
+			if (letters[currLetter]?.classList.contains("correct-letter")) {
+				correctTypedCount--;
+				letters[currLetter].classList.remove("correct-letter");
+			}
 
-		if (currLetter == incorrectLetterIndex) {
-			wordsDOM[currWord].classList.remove("incorrect-word");
-			incorrectLetterIndex = -1;
-		}
+			if (currLetter == words[currWord].incorrectLetterIndex) {
+				wordsDOM[currWord].classList.remove("incorrect-word");
+				words[currWord].incorrectLetterIndex = -1;
+			}
 
-		if (extraLetterCount > 0) {
-			wordsDOM[currWord].removeChild(wordsDOM[currWord].lastChild);
-			extraLetterCount--;
-		} else {
-			letters[currLetter].classList.remove("incorrect-letter");
+			if (words[currWord].typedTill - words[currWord].word.length > 0) {
+				wordsDOM[currWord].removeChild(wordsDOM[currWord].lastChild);
+			} else {
+				letters[currLetter].classList.remove("incorrect-letter");
+			}
+			words[currWord].typedTill--;
+		} else if (
+			currWord != 0 &&
+			wordsDOM[currWord - 1].classList.contains("incorrect-word")
+		) {
+			--correctTypedCount;
+			wordsDOM[currWord].classList.remove("active-word");
+			moveCaretToWord(wordsDOM[--currWord]);
+			wordsDOM[currWord].classList.add("active-word");
+
+			caretPositionLeft = 0;
+			moveCaretHorizontal(words[currWord].typedTill);
+			currLetter = words[currWord].typedTill;
 		}
 	}
 
 	function space(letters) {
-		moveCaretToNextWord(wordsDOM[currWord + 1]);
+		moveCaretToWord(wordsDOM[currWord + 1]);
 
 		if (
 			lines[currLine + 1] &&
@@ -200,7 +217,10 @@ async function listen() {
 			currLine = 1;
 		}
 
-		if (currLetter < words[currWord].length || incorrectLetterIndex != -1) {
+		if (
+			currLetter < words[currWord].word.length ||
+			words[currWord].incorrectLetterIndex != -1
+		) {
 			wordsDOM[currWord].classList.add("incorrect-word");
 		}
 
@@ -208,43 +228,42 @@ async function listen() {
 		wordsDOM[++currWord].classList.add("active-word");
 
 		currLetter = 0;
-		extraLetterCount = 0;
-		incorrectLetterIndex = -1;
 	}
 
 	function correctTyped(letters) {
 		moveCaretHorizontal(1);
+		words[currWord].typedTill++;
 		letters[currLetter++].classList.add("correct-letter");
 	}
 
-	function extraTyped(letters) {
+	function extraLetterTyped(letters, extraLetter) {
+		words[currWord].typedTill++;
 		moveCaretHorizontal(1);
-		if (incorrectLetterIndex == -1) {
+		if (words[currWord].incorrectLetterIndex == -1) {
 			wordsDOM[currWord].classList.add("incorrect-word");
-			incorrectLetterIndex = currLetter;
+			words[currWord].incorrectLetterIndex = currLetter;
 		}
 
-		extraLetterCount++;
-
-		let extraLetter = createLetter(event.key);
-		extraLetter.classList.add("extra-letter");
-		wordsDOM[currWord].appendChild(extraLetter);
-		extraLetter.classList.add("incorrect-letter");
+		let extraLetterDOM = createLetter(extraLetter);
+		extraLetterDOM.classList.add("extra-letter");
+		extraLetterDOM.classList.add("incorrect-letter");
+		wordsDOM[currWord].appendChild(extraLetterDOM);
 		currLetter++;
 	}
 
 	function incorrectTyped(letters) {
+		words[currWord].typedTill++;
 		moveCaretHorizontal(1);
-		if (incorrectLetterIndex == -1) {
+		if (words[currWord].incorrectLetterIndex == -1) {
 			wordsDOM[currWord].classList.add("incorrect-word");
-			incorrectLetterIndex = currLetter;
+			words[currWord].incorrectLetterIndex = currLetter;
 		}
+		console.log(letters[currLetter]);
 		letters[currLetter++].classList.add("incorrect-letter");
 	}
 
 	function controlBackspace() {
 		let i = currLetter;
-		extraLetterCount = 0;
 
 		while (
 			i >= 0 &&
@@ -270,8 +289,8 @@ async function listen() {
 		}
 
 		wordsDOM[currWord].classList.remove("incorrect-word");
-		incorrectLetterIndex = -1;
-		moveCaretToNextWord(wordsDOM[currWord]);
+		words[currWord].incorrectLetterIndex = -1;
+		moveCaretToWord(wordsDOM[currWord]);
 		currLetter = 0;
 	}
 
@@ -301,7 +320,8 @@ async function listen() {
 
 		if (!isListening) return;
 
-		let letters = wordsDOM[currWord].querySelectorAll("letter");
+		let letters = [].slice.call(wordsDOM[currWord].children, 1);
+		console.log(letters);
 
 		if (event.key == "Backspace" && event.ctrlKey) {
 			controlBackspace();
@@ -314,7 +334,7 @@ async function listen() {
 			caret.classList.add("animation-caret-flash");
 		}, 3000);
 
-		if (event.key == "Backspace" && currLetter > 0) {
+		if (event.key == "Backspace") {
 			backspace(letters);
 			return;
 		}
@@ -331,11 +351,11 @@ async function listen() {
 			} else {
 				space(letters);
 			}
-		} else if (words[currWord][currLetter] == event.key) {
+		} else if (words[currWord].word[currLetter] == event.key) {
 			correctTypedCount++;
 			if (
 				currWord == words.length - 1 &&
-				currLetter == words[currWord].length - 1
+				currLetter == words[currWord].word.length - 1
 			) {
 				showResult();
 			} else {
@@ -345,10 +365,11 @@ async function listen() {
 				}
 				correctTyped(letters);
 			}
-		} else if (currLetter >= words[currWord].length) {
+		} else if (currLetter >= words[currWord].word.length) {
 			incorrectTypedCount++;
-			if (extraLetterCount > 5) return;
-			extraTyped(letters);
+			if (words[currWord].typedTill - words[currWord].word.length > 5)
+				return;
+			extraLetterTyped(letters, event.key);
 		} else {
 			incorrectTypedCount++;
 			if (!hasStarted) {
