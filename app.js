@@ -1,6 +1,8 @@
 const typingText = document.querySelector(".typing-text");
 const result = document.querySelector(".result");
 const wpmDisplay = document.querySelector("#wpm");
+const accuracyDisplay = document.querySelector("#accuracy");
+
 let caretPositionLeft = 0;
 let caret;
 let caretTimeout;
@@ -60,9 +62,10 @@ async function listen() {
 		currLetter = 0,
 		extraLetterCount = 0,
 		incorrectLetterIndex = -1,
-		totalTyped = 0,
+		correctTypedCount = 0,
+		totalChars,
+		incorrectTypedCount = 0,
 		seconds = 0,
-		currVisibleWords,
 		timeInterval,
 		resizeTimeout;
 
@@ -85,6 +88,7 @@ async function listen() {
 		typingText.innerHTML = "";
 		const passageData = await addTextToDOM();
 		words = passageData.words;
+		totalChars = passageData.length;
 
 		typingText.classList.remove("hidden");
 		result.classList.add("hidden");
@@ -102,14 +106,15 @@ async function listen() {
 		isListening = true;
 		hasStarted = false;
 
-		currLetter = 0;
-		currLine = 0;
-		currVisibleWords = 0;
-		currWord = 0;
-		extraLetterCount = 0;
-		incorrectLetterIndex = -1;
 		seconds = 0;
-		totalTyped = 0;
+		currLine = 0;
+		currWord = 0;
+		currLetter = 0;
+		currVisibleWords = 0;
+		extraLetterCount = 0;
+		correctTypedCount = 0;
+		incorrectTypedCount = 0;
+		incorrectLetterIndex = -1;
 	}
 
 	function removeLine(line) {
@@ -128,23 +133,27 @@ async function listen() {
 	}
 
 	async function getLine() {
-		const typingTextWidth = parseFloat(window.getComputedStyle(typingText).width.slice(0, -2));
+		const typingTextWidth = parseFloat(
+			window.getComputedStyle(typingText).width.slice(0, -2)
+		);
 		const lines = [[]];
 		let currWidth = 0;
 		let wordWidth;
 
 		for (let i = 0; i < wordsDOM.length; i++) {
 			const item = wordsDOM[i];
-			wordWidth = parseFloat(window.getComputedStyle(item).width.slice(0, -2));
+			wordWidth = parseFloat(
+				window.getComputedStyle(item).width.slice(0, -2)
+			);
 
 			if (currWidth + wordWidth > typingTextWidth) {
 				currWidth = 0;
 				lines.push([]);
 			}
-			currWidth += (wordWidth + 19);
+			currWidth += wordWidth + 19;
 			lines[lines.length - 1].push(item);
 		}
-
+		console.log(lines);
 		return lines;
 	}
 
@@ -157,6 +166,12 @@ async function listen() {
 	function backspace(letters) {
 		moveCaretHorizontal(-1);
 		currLetter--;
+
+		if (letters[currLetter].classList.contains("correct-letter")) {
+			correctTypedCount--;
+			letters[currLetter].classList.remove("correct-letter");
+		}
+
 		if (currLetter == incorrectLetterIndex) {
 			wordsDOM[currWord].classList.remove("incorrect-word");
 			incorrectLetterIndex = -1;
@@ -166,16 +181,13 @@ async function listen() {
 			wordsDOM[currWord].removeChild(wordsDOM[currWord].lastChild);
 			extraLetterCount--;
 		} else {
-			letters[currLetter].classList.remove("correct-letter");
 			letters[currLetter].classList.remove("incorrect-letter");
 		}
 	}
 
 	function space(letters) {
 		moveCaretToNextWord(wordsDOM[currWord + 1]);
-		totalTyped++;
 
-		console.log("currLine :>> ", currLine);
 		if (
 			lines[currLine + 1] &&
 			wordsDOM[currWord + 1] == lines[currLine + 1][0]
@@ -183,7 +195,6 @@ async function listen() {
 			++currLine;
 		}
 
-		console.log(currLine);
 		if (currLine >= 2 && currLine + 1 < lines.length) {
 			removeLine(currLine - 2);
 			currLine = 1;
@@ -203,7 +214,6 @@ async function listen() {
 
 	function correctTyped(letters) {
 		moveCaretHorizontal(1);
-		totalTyped++;
 		letters[currLetter++].classList.add("correct-letter");
 	}
 
@@ -245,8 +255,18 @@ async function listen() {
 		}
 
 		for (; i >= 0; i--) {
+			if (
+				wordsDOM[currWord].children[i].classList.contains(
+					"correct-letter"
+				)
+			) {
+				--correctTypedCount;
+				wordsDOM[currWord].children[i].classList.remove(
+					"correct-letter"
+				);
+			}
+
 			wordsDOM[currWord].children[i].classList.remove("incorrect-letter");
-			wordsDOM[currWord].children[i].classList.remove("correct-letter");
 		}
 
 		wordsDOM[currWord].classList.remove("incorrect-word");
@@ -255,12 +275,21 @@ async function listen() {
 		currLetter = 0;
 	}
 
-	function showWPM() {
+	function showResult() {
 		typingText.classList.add("hidden");
 		result.classList.remove("hidden");
 		wpmDisplay.textContent =
 			"WPM : " +
-			Math.round((totalTyped / 5 / (seconds / 60)) * 100) / 100;
+			Math.round((correctTypedCount / 5 / (seconds / 60)) * 100) / 100;
+		console.log("totalCharsTyped :>> ", correctTypedCount);
+		console.log("totalChars :>> ", totalChars);
+		accuracyDisplay.textContent =
+			"Accuracy : " +
+			Math.round(
+				((100 * (totalChars - incorrectTypedCount)) / totalChars) * 100
+			) /
+				100 +
+			"%";
 		hasStarted = false;
 		isListening = false;
 	}
@@ -296,19 +325,19 @@ async function listen() {
 			event.preventDefault();
 			if (currLetter == 0) return;
 
+			correctTypedCount++;
 			if (currWord == words.length - 1) {
-				wpm = totalTyped / 5 / (seconds / 60);
-				showWPM();
+				showResult();
 			} else {
 				space(letters);
 			}
 		} else if (words[currWord][currLetter] == event.key) {
+			correctTypedCount++;
 			if (
 				currWord == words.length - 1 &&
 				currLetter == words[currWord].length - 1
 			) {
-				wpm = totalTyped / 5 / (seconds / 60);
-				showWPM();
+				showResult();
 			} else {
 				if (!hasStarted) {
 					startTimeCounting();
@@ -317,9 +346,11 @@ async function listen() {
 				correctTyped(letters);
 			}
 		} else if (currLetter >= words[currWord].length) {
+			incorrectTypedCount++;
 			if (extraLetterCount > 5) return;
 			extraTyped(letters);
 		} else {
+			incorrectTypedCount++;
 			if (!hasStarted) {
 				startTimeCounting();
 				hasStarted = true;
@@ -335,7 +366,6 @@ async function listen() {
 	window.addEventListener("resize", () => {
 		clearTimeout(resizeTimeout);
 		resizeTimeout = setTimeout(async () => {
-
 			let len = wordsDOM.length;
 			wordsDOM.reverse();
 			words.reverse();
