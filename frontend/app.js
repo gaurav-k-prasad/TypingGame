@@ -9,7 +9,17 @@ let caretTimeout;
 
 async function getPassage() {
 	// TEST const passage = data.quotes[2574];
-	const passage = (await axios.get("http://localhost:3000/data")).data;
+	let passage;
+	try {
+		passage = (await axios.get("http://localhost:3000/data")).data;
+	} catch (error) {
+		console.error(error);
+		passage = {
+			text: "The quick brown fox jumps over the lazy dog",
+			length: 43,
+		};
+	}
+
 	return passage;
 }
 
@@ -79,6 +89,7 @@ async function listen() {
 
 	let hasStarted = false;
 	let isListening = false;
+	let isRequestInProgress = false;
 
 	let wordsDOM;
 	let words;
@@ -94,7 +105,9 @@ async function listen() {
 
 	async function reset() {
 		typingText.innerHTML = "";
+		isRequestInProgress = true;
 		const passageData = await addTextToDOM();
+		isRequestInProgress = false;
 		words = passageData.words;
 		totalChars = passageData.length;
 
@@ -334,7 +347,7 @@ async function listen() {
 	}
 
 	async function typingHandler(event) {
-		if (event.key == "Enter") {
+		if (event.key == "Enter" && !isRequestInProgress) {
 			await reset();
 		}
 
