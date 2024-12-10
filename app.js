@@ -42,8 +42,8 @@ function createWord(word) {
 }
 
 function moveCaretToWord(word) {
-	caretPositionLeft = -1;
-	moveCaretHorizontal(1);
+	caretPositionLeft = 0;
+	moveCaretHorizontal(0);
 	word.insertBefore(caret, word.children[0]);
 }
 
@@ -104,7 +104,7 @@ async function listen() {
 		wordsDOM = Array.from(document.querySelectorAll(".word"));
 		wordsDOM[0].classList.add("active-word");
 
-		lines = await getLine();
+		lines = (await getLine()).lines;
 
 		caret?.remove();
 		initializeCaret();
@@ -137,16 +137,19 @@ async function listen() {
 		lines.shift();
 	}
 
-	async function getLine() {
+	async function getLine(start = 0, word) {
 		const typingTextWidth = parseFloat(
 			window.getComputedStyle(typingText).width.slice(0, -2)
 		);
 		const lines = [[]];
 		let currWidth = 0;
 		let wordWidth;
+		let wordLine = 0;
+		let hasFoundWord = false;
 
-		for (let i = 0; i < wordsDOM.length; i++) {
+		for (let i = start; i < wordsDOM.length; i++) {
 			const item = wordsDOM[i];
+
 			wordWidth = parseFloat(
 				window.getComputedStyle(item).width.slice(0, -2)
 			);
@@ -155,10 +158,17 @@ async function listen() {
 				currWidth = 0;
 				lines.push([]);
 			}
+
+			// For setting correct line number if the readjustment does not remove all the typed words
+			if (!hasFoundWord && words[i] === word) {
+				hasFoundWord = true;
+				wordLine = lines.length - 1;
+			}
+
 			currWidth += wordWidth + 19;
 			lines[lines.length - 1].push(item);
 		}
-		return lines;
+		return { lines: lines, wordLine: wordLine };
 	}
 
 	function startTimeCounting() {
@@ -192,7 +202,7 @@ async function listen() {
 			currWord != 0 &&
 			wordsDOM[currWord - 1].classList.contains("incorrect-word")
 		) {
-			--correctTypedCount;
+			--correctTypedCount; // For space being correct
 			wordsDOM[currWord].classList.remove("active-word");
 			moveCaretToWord(wordsDOM[--currWord]);
 			wordsDOM[currWord].classList.add("active-word");
@@ -200,7 +210,7 @@ async function listen() {
 			caretPositionLeft = 0;
 			moveCaretHorizontal(words[currWord].typedTill);
 			currLetter = words[currWord].typedTill;
-			
+
 			if (words[currWord].incorrectLetterIndex == -1) {
 				wordsDOM[currWord].classList.remove("incorrect-word");
 			}
@@ -331,7 +341,6 @@ async function listen() {
 		if (!isListening) return;
 
 		let letters = [].slice.call(wordsDOM[currWord].children, 1);
-		console.log(letters);
 
 		if (event.key == "Backspace" && event.ctrlKey) {
 			controlBackspace();
@@ -398,6 +407,14 @@ async function listen() {
 		clearTimeout(resizeTimeout);
 		resizeTimeout = setTimeout(async () => {
 			let len = wordsDOM.length;
+			const linesData = await getLine(0, words[currWord]);
+			lines = linesData.lines;
+
+			if (lines.length <= 3) {
+				currLine = linesData.wordLine;
+				return;
+			}
+
 			wordsDOM.reverse();
 			words.reverse();
 			for (let i = 0; i < currWord; i++) {
@@ -408,7 +425,6 @@ async function listen() {
 			wordsDOM.reverse();
 			words.reverse();
 
-			lines = await getLine();
 			currLine = 0;
 			currWord = 0;
 		}, 200);
