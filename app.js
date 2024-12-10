@@ -8,6 +8,7 @@ let caret;
 let caretTimeout;
 
 async function getPassage() {
+	// TEST const passage = data.quotes[2574];
 	const passage = data.quotes[Math.floor(Math.random() * 6349)];
 	return passage;
 }
@@ -199,6 +200,10 @@ async function listen() {
 			caretPositionLeft = 0;
 			moveCaretHorizontal(words[currWord].typedTill);
 			currLetter = words[currWord].typedTill;
+			
+			if (words[currWord].incorrectLetterIndex == -1) {
+				wordsDOM[currWord].classList.remove("incorrect-word");
+			}
 		}
 	}
 
@@ -263,6 +268,10 @@ async function listen() {
 	}
 
 	function controlBackspace() {
+		if (currLetter == 0 && currWord > 0) {
+			backspace();
+		}
+
 		let i = currLetter;
 
 		while (
@@ -290,6 +299,7 @@ async function listen() {
 
 		wordsDOM[currWord].classList.remove("incorrect-word");
 		words[currWord].incorrectLetterIndex = -1;
+		words[currWord].typedTill = 0;
 		moveCaretToWord(wordsDOM[currWord]);
 		currLetter = 0;
 	}
