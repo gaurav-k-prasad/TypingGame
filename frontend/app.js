@@ -9,7 +9,7 @@ let caretTimeout;
 
 async function getPassage() {
 	// TEST const passage = data.quotes[2574];
-	const passage = data.quotes[Math.floor(Math.random() * 6349)];
+	const passage = (await axios.get("http://localhost:3000/data")).data;
 	return passage;
 }
 
@@ -425,6 +425,7 @@ async function listen() {
 			wordsDOM.reverse();
 			words.reverse();
 
+			lines = (await getLine()).lines;
 			currLine = 0;
 			currWord = 0;
 		}, 200);
