@@ -2,6 +2,7 @@ const typingText = document.querySelector(".typing-text");
 const result = document.querySelector(".result");
 const wpmDisplay = document.querySelector("#wpm");
 const accuracyDisplay = document.querySelector("#accuracy");
+const loading = document.querySelector(".loading");
 
 let caretPositionLeft = 0;
 let caret;
@@ -10,7 +11,9 @@ let caretTimeout;
 async function getPassage() {
 	// TEST const passage = data.quotes[2574];
 	let passage;
+	
 	try {
+		loading.classList.add("loading");
 		passage = (await axios.get("http://localhost:3000/data")).data;
 	} catch (error) {
 		console.error(error);
@@ -18,6 +21,8 @@ async function getPassage() {
 			text: "The quick brown fox jumps over the lazy dog",
 			length: 43,
 		};
+	} finally {
+		loading.classList.remove("loading");
 	}
 
 	return passage;
@@ -347,7 +352,7 @@ async function listen() {
 	}
 
 	async function typingHandler(event) {
-		if (event.key == "Enter" && !isRequestInProgress) {
+		if (event.key == "Enter" && !isRequestInProgress && !event.repeat) {
 			await reset();
 		}
 
