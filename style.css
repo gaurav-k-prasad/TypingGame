@@ -150,3 +150,15 @@ letter {
 .hidden {
 	display: none !important;
 }
+
+.alert {
+	color: yellow;
+	position: absolute;
+	top: 0;
+	right: 0;
+	padding: 0.5rem;
+	border-radius: 0.5rem;
+	background-color: rgba(138, 159, 0, 0.625);
+	width: 12rem;
+	font-size: 0.8rem;
+}

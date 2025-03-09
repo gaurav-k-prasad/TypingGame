@@ -25,10 +25,6 @@ app.use(express.json());
 app.use(cors())
 app.use(express.static("public"));
 
-app.get("/", (req, res) => {
-	res.render("index.ejs");
-});
-
 app.get("/data", (req, res) => {
 	const passage =
 		data.quotes[Math.floor(Math.random() * (data.quotes.length + 1))];
