@@ -1,9 +1,10 @@
 const Socket = require("ws");
 const express = require("express");
 const data = require("./data.cjs");
+const cors = require("cors")
 
 const app = express();
-const PORT = 3000;
+const PORT = 8080;
 
 const server = app.listen(PORT, () => {
 	console.log(`Server listening on port ${PORT}`);
@@ -21,6 +22,7 @@ wss.on("connection", (ws) => {
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(cors())
 app.use(express.static("public"));
 
 app.get("/", (req, res) => {
@@ -30,6 +32,5 @@ app.get("/", (req, res) => {
 app.get("/data", (req, res) => {
 	const passage =
 		data.quotes[Math.floor(Math.random() * (data.quotes.length + 1))];
-	console.log(passage);
 	res.json(passage);
 });

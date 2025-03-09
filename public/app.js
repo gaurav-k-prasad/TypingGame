@@ -14,7 +14,7 @@ async function getPassage() {
 	
 	try {
 		loading.classList.add("loading");
-		passage = (await axios.get("http://localhost:3000/data")).data;
+		passage = (await axios.get("http://localhost:8080/data")).data;
 	} catch (error) {
 		console.error(error);
 		passage = {
